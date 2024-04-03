@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.os.StrictMode
+import android.os.StrictMode.ThreadPolicy
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -21,11 +23,9 @@ import com.whty.comm.inter.ICommunication
 import com.whty.device.utils.TLV
 import com.whty.tymposapi.DeviceApi
 import com.whty.tymposapi.IDeviceDelegate
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
+
 
 open class MainActivity : AppCompatActivity() {
 
@@ -141,10 +141,12 @@ open class MainActivity : AppCompatActivity() {
 
         intent.priority = -1000
         applicationContext.registerReceiver(receiver, intent)
+        val policy = ThreadPolicy.Builder().permitAll().build()
+
+        StrictMode.setThreadPolicy(policy)
         mayRequestLocation()
 
         binding.init.setOnClickListener {
-            CoroutineScope(Dispatchers.Main).launch {
                 if (!isInit) {
                     val init = deviceApi?.initDevice(ICommunication.BLUETOOTH_DEVICE)
                     if (init != null) {
@@ -154,20 +156,24 @@ open class MainActivity : AppCompatActivity() {
                 println("test data init $isInit")
                 binding.textResult.text = "is Init $isInit"
 
-                delay(3.seconds)
-
+            val handler = Handler(Looper.myLooper()!!)
+            handler.postDelayed({
                 if (isInit) {
-                    val connect = deviceApi?.connectDevice("DE:E6:5A:BA:80:4C")
-                    if (connect != null) {
-                        deviceConnected = connect
-                    }
+                    object : Thread() {
+                        override fun run() {
+                            Looper.prepare()
+                            val connect = deviceApi?.connectDevice("DE:E6:5A:BA:80:4C")
+                            if (connect != null) {
+                                deviceConnected = connect
+                            }
+                        }
+                    }.start()
+
                     if (deviceConnected) {
                         binding.textResult.text = "Device Connected $deviceConnected"
                     }
                 }
-            }
-
-
+            },3000)
         }
 
 
